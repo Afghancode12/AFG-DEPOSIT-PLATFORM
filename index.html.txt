@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>AZAD Wallet</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { height:100%; width:100%; overflow:hidden; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#fff; color:#1a1a2e; touch-action:manipulation; }
+
+  /* LOADING */
+  #loadingScreen { position:fixed; inset:0; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; transition:opacity .6s ease, visibility .6s ease; }
+  #loadingScreen.hidden { opacity:0; visibility:hidden; }
+  .loader-logo { width:110px; height:110px; border-radius:26px; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.25); animation:pulseScale 1.5s ease-in-out infinite; margin-bottom:28px; background:#fff; display:flex; align-items:center; justify-content:center; }
+  .loader-logo img { width:100%; height:100%; object-fit:cover; }
+  @keyframes pulseScale { 0%,100%{transform:scale(1);} 50%{transform:scale(1.08);} }
+  .spinner { width:44px; height:44px; border:4px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg);} }
+  .loading-text { color:#fff; margin-top:18px; font-size:15px; font-weight:500; letter-spacing:.5px; opacity:.9; }
+
+  #app { display:none; height:100vh; width:100%; flex-direction:column; background:#f7f8fc; position:relative; }
+  #app.visible { display:flex; }
+
+  .page { flex:1; overflow-y:auto; overflow-x:hidden; padding:16px 16px 160px 16px; display:none; animation:fadeIn .3s ease; -webkit-overflow-scrolling:touch; position:relative; }
+  .page.active { display:block; }
+  @keyframes fadeIn { from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+  .page::-webkit-scrollbar { width:0; }
+
+  /* FLOATING LOGO */
+  #floatingLogo { position:fixed; width:60px; height:60px; border-radius:50%; overflow:hidden; border:3px solid #fff; box-shadow:0 10px 28px rgba(102,126,234,.4); cursor:grab; z-index:200; touch-action:none; background:linear-gradient(135deg,#667eea,#764ba2); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:20px; user-select:none; transition:box-shadow .2s ease; }
+  #floatingLogo img { width:100%; height:100%; object-fit:cover; pointer-events:none; }
+  #floatingLogo:active { cursor:grabbing; box-shadow:0 14px 32px rgba(102,126,234,.6); }
+  #floatingLogo::after { content:""; position:absolute; bottom:-2px; right:-2px; width:16px; height:16px; background:#22b573; border-radius:50%; border:3px solid #fff; animation:pulseDot 2s ease-in-out infinite; }
+  @keyframes pulseDot { 0%,100%{transform:scale(1); opacity:1;} 50%{transform:scale(1.15); opacity:.7;} }
+
+  .user-card { background:#fff; border-radius:20px; padding:14px 16px; display:flex; align-items:center; gap:12px; box-shadow:0 4px 20px rgba(102,126,234,.08); margin-bottom:18px; }
+  .user-avatar { width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg,#667eea,#764ba2); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:20px; overflow:hidden; flex-shrink:0; border:2px solid #eef0ff; }
+  .user-avatar img { width:100%; height:100%; object-fit:cover; }
+  .user-info { flex:1; min-width:0; }
+  .user-name { display:flex; align-items:center; gap:5px; font-weight:700; font-size:16px; color:#1a1a2e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .verified-badge { width:17px; height:17px; flex-shrink:0; }
+  .user-username { font-size:13px; color:#8a8fa3; margin-top:2px; }
+
+  .balance-card { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); border-radius:24px; padding:24px 22px; color:#fff; box-shadow:0 12px 30px rgba(102,126,234,.35); margin-bottom:18px; position:relative; overflow:hidden; }
+  .balance-card::before { content:""; position:absolute; top:-60px; right:-60px; width:180px; height:180px; background:rgba(255,255,255,.1); border-radius:50%; }
+  .balance-label { font-size:13px; opacity:.85; letter-spacing:.5px; margin-bottom:6px; position:relative; }
+  .balance-amount { font-size:38px; font-weight:800; letter-spacing:-1px; position:relative; display:flex; align-items:baseline; gap:4px; }
+  .balance-amount .currency { font-size:22px; font-weight:600; opacity:.9; }
+  .balance-usd { font-size:13px; opacity:.85; margin-top:8px; position:relative; }
+
+  /* ACTIONS - now 5 with Promo Code */
+  .actions { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px; margin-bottom:20px; }
+  .action-btn { background:#fff; border:none; border-radius:18px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; box-shadow:0 4px 16px rgba(102,126,234,.08); transition:transform .15s ease; font-family:inherit; position:relative; }
+  .action-btn:active { transform:scale(.95); }
+  .action-btn:nth-child(1) { grid-column:span 2; }
+  .action-btn:nth-child(2) { grid-column:span 2; }
+  .action-btn:nth-child(3) { grid-column:span 2; }
+  .action-btn:nth-child(4) { grid-column:span 3; }
+  .action-btn:nth-child(5) { grid-column:span 3; }
+  .action-icon { width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#eef0ff,#e0e4ff); position:relative; }
+  .action-icon svg { width:22px; height:22px; }
+  .action-label { font-size:11px; font-weight:600; color:#4a4a68; }
+
+  .section-title { font-size:16px; font-weight:700; color:#1a1a2e; margin-bottom:12px; padding-left:4px; }
+
+  .portfolio { background:#fff; border-radius:22px; padding:8px; box-shadow:0 4px 20px rgba(102,126,234,.08); }
+  .coin-row { display:flex; align-items:center; gap:12px; padding:12px 10px; border-radius:16px; }
+  .coin-row:not(:last-child) { border-bottom:1px solid #f2f3f8; }
+  .coin-row:active { background:#f7f8fc; }
+  .coin-logo { width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0; background:#f2f3f8; border:1px solid #eef0ff; }
+  .coin-info { flex:1; min-width:0; }
+  .coin-name { font-weight:700; font-size:15px; color:#1a1a2e; }
+  .coin-price { font-size:12px; color:#8a8fa3; margin-top:2px; }
+  .coin-balance { text-align:right; flex-shrink:0; }
+  .coin-amount { font-weight:700; font-size:15px; color:#1a1a2e; }
+  .coin-usd { font-size:12px; color:#22b573; font-weight:600; margin-top:2px; }
+
+  /* BOTTOM NAV - 3 tabs */
+  .bottom-nav { position:fixed; bottom:0; left:0; right:0; background:#fff; display:flex; justify-content:space-around; align-items:center; padding:8px 8px calc(8px + env(safe-area-inset-bottom)); box-shadow:0 -4px 20px rgba(102,126,234,.12); border-top-left-radius:24px; border-top-right-radius:24px; z-index:100; }
+  .nav-item { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border:none; background:transparent; cursor:pointer; font-family:inherit; transition:transform .15s ease; position:relative; }
+  .nav-item:active { transform:scale(.9); }
+  .nav-icon { width:26px; height:26px; display:flex; align-items:center; justify-content:center; }
+  .nav-icon svg { width:24px; height:24px; stroke:#b0b4c8; fill:none; stroke-width:1.8; transition:stroke .2s ease; }
+  .nav-label { font-size:10px; font-weight:600; color:#b0b4c8; transition:color .2s ease; }
+  .nav-item.active .nav-icon svg { stroke:#667eea; }
+  .nav-item.active .nav-label { color:#667eea; }
+  .nav-item.active::before { content:""; position:absolute; top:0; width:24px; height:3px; background:#667eea; border-radius:0 0 4px 4px; }
+
+  /* REFERRAL */
+  .referral-hero { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); border-radius:24px; padding:26px 22px; color:#fff; text-align:center; box-shadow:0 12px 30px rgba(102,126,234,.35); margin-bottom:16px; position:relative; overflow:hidden; }
+  .referral-hero::before { content:""; position:absolute; top:-50px; right:-50px; width:160px; height:160px; background:rgba(255,255,255,.1); border-radius:50%; }
+  .referral-hero-icon { width:64px; height:64px; border-radius:20px; background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:30px; position:relative; }
+  .referral-hero-title { font-size:20px; font-weight:800; margin-bottom:6px; position:relative; }
+  .referral-hero-sub { font-size:13px; opacity:.9; position:relative; line-height:1.5; }
+  .referral-hero-sub strong { font-weight:800; font-size:15px; }
+
+  .referral-card { background:#fff; border-radius:22px; padding:22px; box-shadow:0 4px 20px rgba(102,126,234,.08); margin-bottom:16px; }
+  .referral-label { font-size:13px; color:#8a8fa3; margin-bottom:10px; font-weight:600; }
+  .referral-link-box { background:#f7f8fc; border-radius:14px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; border:1.5px dashed #d8dcf0; }
+  .referral-link { font-size:12px; color:#4a4a68; word-break:break-all; flex:1; font-family:monospace; }
+  .copy-btn { background:linear-gradient(135deg,#667eea,#764ba2); border:none; border-radius:10px; padding:9px 16px; color:#fff; font-weight:700; font-size:12px; cursor:pointer; font-family:inherit; flex-shrink:0; }
+  .copy-btn:active { transform:scale(.94); }
+
+  .share-btn { width:100%; background:linear-gradient(135deg,#22b573,#16a34a); border:none; border-radius:16px; padding:15px; color:#fff; font-weight:800; font-size:15px; cursor:pointer; font-family:inherit; margin-top:14px; box-shadow:0 6px 20px rgba(34,181,115,.35); display:flex; align-items:center; justify-content:center; gap:8px; }
+  .share-btn:active { transform:scale(.97); }
+  .share-btn svg { width:20px; height:20px; stroke:#fff; fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* REFERRAL LEVELS */
+  .levels-title { font-size:16px; font-weight:800; margin:20px 0 12px; padding-left:4px; display:flex; align-items:center; gap:8px; }
+  .level-card { background:#fff; border-radius:22px; padding:18px; margin-bottom:12px; box-shadow:0 4px 20px rgba(102,126,234,.08); position:relative; overflow:hidden; }
+  .level-card::before { content:""; position:absolute; top:-40px; right:-40px; width:140px; height:140px; border-radius:50%; opacity:.08; }
+  .level-card.lvl1::before { background:#667eea; }
+  .level-card.lvl2::before { background:#22b573; }
+  .level-card.lvl3::before { background:#ff9f1c; }
+  .level-head { display:flex; align-items:center; gap:12px; margin-bottom:14px; position:relative; }
+  .level-badge { width:48px; height:48px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:18px; color:#fff; flex-shrink:0; position:relative; }
+  .level-card.lvl1 .level-badge { background:linear-gradient(135deg,#667eea,#764ba2); }
+  .level-card.lvl2 .level-badge { background:linear-gradient(135deg,#22b573,#16a34a); }
+  .level-card.lvl3 .level-badge { background:linear-gradient(135deg,#ff9f1c,#f77f00); }
+  .level-info { flex:1; min-width:0; }
+  .level-name { font-size:15px; font-weight:800; color:#1a1a2e; }
+  .level-rate { font-size:12px; color:#8a8fa3; margin-top:2px; font-weight:700; display:flex; align-items:center; gap:5px; }
+  .level-rate img { width:14px; height:14px; border-radius:50%; object-fit:cover; }
+  .level-rate strong { color:#22b573; font-weight:900; }
+  .level-stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; position:relative; }
+  .level-stat { background:#f7f8fc; border-radius:14px; padding:12px 10px; text-align:center; }
+  .level-stat-icon { width:28px; height:28px; margin:0 auto 4px; border-radius:50%; object-fit:cover; display:block; }
+  .level-stat-value { font-size:16px; font-weight:900; color:#1a1a2e; }
+  .level-stat-label { font-size:10px; color:#8a8fa3; font-weight:700; margin-top:3px; text-transform:uppercase; letter-spacing:.4px; }
+  .level-stat-value.azad { color:#667eea; }
+
+  /* TASK */
+  .daily-card { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); border-radius:22px; padding:20px; color:#fff; margin-bottom:16px; box-shadow:0 12px 30px rgba(102,126,234,.35); display:flex; align-items:center; gap:14px; position:relative; overflow:hidden; }
+  .daily-card::before { content:""; position:absolute; top:-40px; right:-40px; width:140px; height:140px; background:rgba(255,255,255,.1); border-radius:50%; }
+  .daily-icon { width:56px; height:56px; border-radius:18px; background:rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0; position:relative; }
+  .daily-info { flex:1; position:relative; }
+  .daily-title { font-weight:800; font-size:16px; margin-bottom:3px; }
+  .daily-reward { font-size:13px; opacity:.9; }
+  .daily-reward strong { font-weight:800; font-size:14px; }
+  .daily-btn { background:#fff; border:none; border-radius:14px; padding:11px 20px; color:#667eea; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; flex-shrink:0; position:relative; transition:transform .15s ease; }
+  .daily-btn:active { transform:scale(.94); }
+  .daily-btn.claimed { background:rgba(255,255,255,.25); color:#fff; cursor:default; }
+
+  .task-card { background:#fff; border-radius:20px; padding:16px; margin-bottom:12px; display:flex; align-items:center; gap:14px; box-shadow:0 4px 20px rgba(102,126,234,.08); }
+  .task-icon { width:50px; height:50px; border-radius:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; background:#f7f8fc; }
+  .task-icon img { width:100%; height:100%; object-fit:cover; }
+  .task-icon.emoji { font-size:24px; }
+  .task-info { flex:1; }
+  .task-title { font-weight:700; font-size:15px; color:#1a1a2e; }
+  .task-reward { font-size:12px; color:#22b573; font-weight:600; margin-top:3px; }
+  .task-btn { background:linear-gradient(135deg,#667eea,#764ba2); border:none; border-radius:12px; padding:10px 18px; color:#fff; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit; flex-shrink:0; transition:transform .15s ease; }
+  .task-btn:active { transform:scale(.94); }
+  .task-btn.done { background:#d1f7dd; color:#16803c; cursor:default; }
+  .task-btn:disabled { opacity:.6; cursor:not-allowed; }
+
+  .empty-tasks { background:#fff; border-radius:20px; padding:44px 20px; text-align:center; box-shadow:0 4px 20px rgba(102,126,234,.08); }
+  .empty-tasks-icon { width:70px; height:70px; border-radius:50%; background:#eef0ff; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:30px; }
+  .empty-tasks-text { font-size:14px; color:#8a8fa3; font-weight:600; }
+
+  /* MODAL */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); backdrop-filter:blur(4px); z-index:1000; display:none; align-items:flex-end; justify-content:center; animation:fadeIn .25s ease; }
+  .modal-overlay.show { display:flex; }
+  .modal-content { background:#fff; width:100%; max-width:500px; border-top-left-radius:28px; border-top-right-radius:28px; padding:22px 20px calc(24px + env(safe-area-inset-bottom)); max-height:92vh; overflow-y:auto; animation:slideUp .35s cubic-bezier(.16,1,.3,1); -webkit-overflow-scrolling:touch; }
+  .modal-content::-webkit-scrollbar { width:0; }
+  @keyframes slideUp { from{transform:translateY(100%);} to{transform:translateY(0);} }
+  .modal-handle { width:44px; height:5px; background:#e0e4f0; border-radius:10px; margin:0 auto 16px; }
+  .modal-title { font-size:20px; font-weight:800; color:#1a1a2e; margin-bottom:4px; text-align:center; }
+  .modal-subtitle { font-size:13px; color:#8a8fa3; text-align:center; margin-bottom:20px; }
+  .modal-label { font-size:13px; font-weight:700; color:#4a4a68; margin-bottom:10px; margin-top:14px; display:block; }
+
+  .currency-selector { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:4px; }
+  .currency-option { background:#f7f8fc; border:2px solid #f7f8fc; border-radius:16px; padding:12px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; transition:all .2s ease; font-family:inherit; }
+  .currency-option:active { transform:scale(.96); }
+  .currency-option.selected { background:#eef0ff; border-color:#667eea; box-shadow:0 4px 14px rgba(102,126,234,.25); }
+  .currency-option img { width:34px; height:34px; border-radius:50%; object-fit:cover; }
+  .currency-option span { font-size:11px; font-weight:700; color:#4a4a68; }
+  .currency-option.selected span { color:#667eea; }
+
+  .input-wrap { background:#f7f8fc; border-radius:16px; padding:14px 18px; border:2px solid #f7f8fc; transition:border .2s ease; display:flex; align-items:center; gap:10px; }
+  .input-wrap:focus-within { border-color:#667eea; background:#fff; }
+  .input-wrap input { border:none; background:transparent; outline:none; font-size:16px; font-weight:700; color:#1a1a2e; width:100%; font-family:inherit; }
+  .input-wrap input::placeholder { color:#b0b4c8; font-weight:500; }
+  .input-suffix { font-size:13px; font-weight:700; color:#8a8fa3; flex-shrink:0; }
+  .min-hint { font-size:12px; color:#8a8fa3; margin-top:8px; padding-left:4px; }
+  .min-hint.error { color:#e63946; font-weight:700; }
+
+  .address-box { background:#f7f8fc; border-radius:16px; padding:14px 16px; border:2px solid #f7f8fc; transition:border .2s ease; margin-top:8px; }
+  .address-box:focus-within { border-color:#667eea; background:#fff; }
+  .address-box input { border:none; background:transparent; outline:none; font-size:14px; color:#1a1a2e; width:100%; font-family:monospace; font-weight:600; }
+  .address-box input::placeholder { color:#b0b4c8; font-weight:500; font-family:inherit; }
+
+  .submit-btn { width:100%; background:linear-gradient(135deg,#667eea,#764ba2); border:none; border-radius:18px; padding:17px; color:#fff; font-weight:800; font-size:16px; cursor:pointer; font-family:inherit; margin-top:20px; box-shadow:0 8px 24px rgba(102,126,234,.35); transition:transform .15s ease; }
+  .submit-btn:active { transform:scale(.97); }
+  .submit-btn:disabled { opacity:.5; cursor:not-allowed; box-shadow:none; }
+
+  .swap-box { background:#f7f8fc; border-radius:20px; padding:16px; margin-bottom:10px; }
+  .swap-row { display:flex; align-items:center; gap:12px; }
+  .swap-coin-select { display:flex; align-items:center; gap:8px; background:#fff; border-radius:14px; padding:8px 12px; cursor:pointer; border:2px solid #fff; transition:border .2s ease; }
+  .swap-coin-select:active { transform:scale(.96); }
+  .swap-coin-select img { width:32px; height:32px; border-radius:50%; object-fit:cover; }
+  .swap-coin-select .swap-coin-name { font-weight:700; font-size:14px; color:#1a1a2e; }
+  .swap-coin-select .swap-chevron { width:14px; height:14px; stroke:#8a8fa3; fill:none; stroke-width:2.5; }
+  .swap-input { flex:1; background:transparent; border:none; outline:none; font-size:22px; font-weight:800; color:#1a1a2e; text-align:right; font-family:inherit; min-width:0; }
+  .swap-input::placeholder { color:#c8ccd8; }
+  .swap-bal { font-size:11px; color:#8a8fa3; margin-top:8px; text-align:right; font-weight:600; }
+  .swap-bal strong { color:#667eea; }
+
+  .swap-swap-icon { display:flex; justify-content:center; margin:-6px 0; position:relative; z-index:2; }
+  .swap-swap-icon button { width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg,#667eea,#764ba2); border:4px solid #fff; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 6px 18px rgba(102,126,234,.35); transition:transform .2s ease; }
+  .swap-swap-icon button:active { transform:scale(.9) rotate(180deg); }
+  .swap-swap-icon svg { width:22px; height:22px; stroke:#fff; fill:none; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+
+  .swap-info { background:#eef0ff; border-radius:14px; padding:12px 16px; margin-top:16px; display:flex; justify-content:space-between; align-items:center; }
+  .swap-info-item { font-size:12px; color:#4a4a68; font-weight:600; }
+  .swap-info-item strong { color:#667eea; font-weight:800; }
+
+  .coin-picker-list { display:flex; flex-direction:column; gap:8px; }
+  .coin-picker-item { background:#f7f8fc; border-radius:16px; padding:14px 16px; display:flex; align-items:center; gap:12px; cursor:pointer; border:2px solid #f7f8fc; transition:all .2s ease; }
+  .coin-picker-item:active { transform:scale(.98); }
+  .coin-picker-item.selected { border-color:#667eea; background:#eef0ff; }
+  .coin-picker-item img { width:42px; height:42px; border-radius:50%; object-fit:cover; }
+  .coin-picker-item .coin-picker-name { font-weight:700; font-size:15px; color:#1a1a2e; }
+  .coin-picker-item .coin-picker-bal { font-size:12px; color:#8a8fa3; margin-top:2px; }
+
+  #withdrawProcessing { position:fixed; inset:0; background:rgba(255,255,255,.96); backdrop-filter:blur(8px); z-index:2000; display:none; flex-direction:column; align-items:center; justify-content:center; animation:fadeIn .3s ease; }
+  #withdrawProcessing.show { display:flex; }
+  .process-ring { width:72px; height:72px; border:5px solid #eef0ff; border-top-color:#667eea; border-radius:50%; animation:spin .9s linear infinite; margin-bottom:20px; }
+  .process-text { font-size:16px; font-weight:700; color:#1a1a2e; text-align:center; padding:0 20px; }
+  .process-sub { font-size:13px; color:#8a8fa3; margin-top:6px; text-align:center; padding:0 20px; }
+  .success-tick { width:90px; height:90px; border-radius:50%; background:linear-gradient(135deg,#22b573,#16a34a); display:flex; align-items:center; justify-content:center; margin-bottom:18px; animation:popIn .5s cubic-bezier(.68,-.55,.27,1.55); box-shadow:0 12px 32px rgba(34,181,115,.4); }
+  .success-tick svg { width:48px; height:48px; stroke:#fff; stroke-width:3.5; fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:drawCheck .5s ease forwards .3s; }
+  @keyframes drawCheck { to{stroke-dashoffset:0;} }
+  @keyframes popIn { 0%{transform:scale(0);} 100%{transform:scale(1);} }
+
+  .history-item { background:#fff; border-radius:18px; padding:14px 16px; margin-bottom:10px; box-shadow:0 4px 16px rgba(102,126,234,.06); }
+  .history-main { display:flex; align-items:center; gap:12px; }
+  .history-logo { width:42px; height:42px; border-radius:50%; object-fit:cover; flex-shrink:0; border:1px solid #eef0ff; }
+  .history-info { flex:1; min-width:0; }
+  .history-coin { font-weight:700; font-size:14px; color:#1a1a2e; }
+  .history-date { font-size:11px; color:#8a8fa3; margin-top:3px; }
+  .history-right { text-align:right; flex-shrink:0; }
+  .history-amount { font-weight:800; font-size:14px; }
+  .history-amount.negative { color:#e63946; }
+  .history-amount.positive { color:#22b573; }
+  .history-amount.swap-amount { color:#667eea; }
+  .history-status { font-size:10px; font-weight:700; margin-top:3px; text-transform:uppercase; letter-spacing:.5px; padding:2px 8px; border-radius:8px; display:inline-block; }
+  .status-pending { background:#fff3cd; color:#b8860b; }
+  .status-completed { background:#d1f7dd; color:#16803c; }
+  .status-failed { background:#fde2e4; color:#c1121f; }
+  .swap-visual { display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+  .empty-history { background:#fff; border-radius:20px; padding:44px 20px; text-align:center; box-shadow:0 4px 20px rgba(102,126,234,.08); }
+  .empty-history-icon { width:70px; height:70px; border-radius:50%; background:#eef0ff; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; }
+  .empty-history-icon svg { width:34px; height:34px; stroke:#667eea; fill:none; stroke-width:1.8; }
+  .empty-history-text { font-size:14px; color:#8a8fa3; font-weight:600; }
+
+  .toast { position:fixed; bottom:110px; left:50%; transform:translateX(-50%) translateY(20px); background:#1a1a2e; color:#fff; padding:11px 20px; border-radius:30px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:all .3s ease; z-index:9999; white-space:normal; max-width:90vw; text-align:center; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .spinner-small { width:16px; height:16px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; display:inline-block; vertical-align:middle; }
+
+  /* TOPUP */
+  .provider-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; }
+  .provider-option { background:#fff; border:2px solid #fff; border-radius:16px; padding:10px 4px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; transition:all .2s ease; font-family:inherit; box-shadow:0 4px 12px rgba(102,126,234,.06); }
+  .provider-option:active { transform:scale(.96); }
+  .provider-option.selected { border-color:#667eea; background:#eef0ff; }
+  .provider-logo { width:36px; height:36px; border-radius:10px; object-fit:contain; background:#fff; padding:3px; }
+  .provider-option span { font-size:9px; font-weight:800; color:#4a4a68; text-align:center; letter-spacing:.2px; }
+  .provider-option.selected span { color:#667eea; }
+  .phone-input-wrap { background:#fff; border-radius:16px; padding:14px 18px; border:2px solid #fff; display:flex; align-items:center; gap:10px; box-shadow:0 4px 14px rgba(102,126,234,.08); transition:border .2s ease; }
+  .phone-input-wrap:focus-within { border-color:#667eea; }
+  .phone-prefix { font-size:15px; font-weight:700; color:#667eea; padding-right:10px; border-right:1.5px solid #eef0ff; flex-shrink:0; }
+  .phone-input-wrap input { border:none; background:transparent; outline:none; font-size:16px; font-weight:700; color:#1a1a2e; width:100%; font-family:inherit; letter-spacing:.5px; }
+  .payment-selector { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .payment-option { background:#fff; border:2px solid #fff; border-radius:16px; padding:12px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; transition:all .2s ease; font-family:inherit; box-shadow:0 4px 12px rgba(102,126,234,.06); }
+  .payment-option:active { transform:scale(.96); }
+  .payment-option.selected { border-color:#667eea; background:#eef0ff; }
+  .payment-option img { width:34px; height:34px; border-radius:50%; object-fit:cover; }
+  .payment-option span { font-size:11px; font-weight:800; color:#4a4a68; }
+  .payment-option.selected span { color:#667eea; }
+  .amount-input-wrap { background:#fff; border-radius:16px; padding:14px 18px; border:2px solid #fff; display:flex; align-items:center; gap:10px; box-shadow:0 4px 14px rgba(102,126,234,.08); transition:border .2s ease; }
+  .amount-input-wrap:focus-within { border-color:#667eea; }
+  .amount-input-wrap input { border:none; background:transparent; outline:none; font-size:20px; font-weight:800; color:#1a1a2e; width:100%; font-family:inherit; }
+  .amount-suffix { font-size:14px; font-weight:800; color:#8a8fa3; flex-shrink:0; }
+  .topup-submit-btn { width:100%; background:linear-gradient(135deg,#ff9f1c,#f77f00); border:none; border-radius:18px; padding:17px; color:#fff; font-weight:800; font-size:16px; cursor:pointer; font-family:inherit; margin-top:20px; box-shadow:0 8px 24px rgba(255,159,28,.4); transition:transform .15s ease; }
+  .topup-submit-btn:active { transform:scale(.97); }
+  .topup-submit-btn:disabled { opacity:.5; cursor:not-allowed; box-shadow:none; }
+  .step-label { font-size:13px; font-weight:800; color:#4a4a68; margin-bottom:10px; margin-top:16px; display:flex; align-items:center; gap:6px; }
+  .step-num { width:22px; height:22px; border-radius:50%; background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0; }
+
+  /* PROMO CODE */
+  .promo-hero { background:linear-gradient(135deg,#22b573 0%,#16a34a 100%); border-radius:28px; padding:30px 24px; color:#fff; text-align:center; box-shadow:0 16px 40px rgba(34,181,115,.4); margin-bottom:20px; position:relative; overflow:hidden; }
+  .promo-hero::before { content:""; position:absolute; top:-60px; right:-60px; width:200px; height:200px; background:rgba(255,255,255,.1); border-radius:50%; }
+  .promo-hero::after { content:""; position:absolute; bottom:-80px; left:-80px; width:220px; height:220px; background:rgba(255,255,255,.08); border-radius:50%; }
+  .promo-icon { width:88px; height:88px; border-radius:26px; background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; margin:0 auto 18px; font-size:44px; position:relative; animation:floatY 3s ease-in-out infinite; backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.25); }
+  @keyframes floatY { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+  .promo-title { font-size:24px; font-weight:900; margin-bottom:8px; position:relative; letter-spacing:-.5px; }
+  .promo-sub { font-size:14px; opacity:.9; position:relative; max-width:280px; margin:0 auto; line-height:1.5; }
+
+  .promo-card { background:#fff; border-radius:22px; padding:22px; box-shadow:0 4px 20px rgba(102,126,234,.08); margin-bottom:16px; }
+  .promo-label { font-size:13px; font-weight:800; color:#4a4a68; margin-bottom:10px; display:block; text-transform:uppercase; letter-spacing:.5px; }
+  .promo-input-wrap { background:#f7f8fc; border-radius:16px; padding:16px 18px; border:2px solid #f7f8fc; transition:border .2s ease; display:flex; align-items:center; gap:10px; }
+  .promo-input-wrap:focus-within { border-color:#22b573; background:#fff; }
+  .promo-input-wrap input { border:none; background:transparent; outline:none; font-size:18px; font-weight:800; color:#1a1a2e; width:100%; font-family:inherit; text-transform:uppercase; letter-spacing:2px; }
+  .promo-input-wrap input::placeholder { color:#b0b4c8; font-weight:600; letter-spacing:1px; }
+  .promo-input-suffix { font-size:16px; color:#8a8fa3; flex-shrink:0; }
+
+  .promo-submit-btn { width:100%; background:linear-gradient(135deg,#22b573,#16a34a); border:none; border-radius:18px; padding:17px; color:#fff; font-weight:800; font-size:16px; cursor:pointer; font-family:inherit; margin-top:16px; box-shadow:0 8px 24px rgba(34,181,115,.35); transition:transform .15s ease; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .promo-submit-btn:active { transform:scale(.97); }
+  .promo-submit-btn:disabled { opacity:.5; cursor:not-allowed; box-shadow:none; }
+
+  .promo-msg { border-radius:14px; padding:14px 16px; font-size:13px; font-weight:700; margin-top:12px; display:none; text-align:center; }
+  .promo-msg.show { display:block; animation:fadeIn .3s ease; }
+  .promo-msg.success { background:#d1f7dd; color:#16803c; border:1.5px solid #b8ecc8; }
+  .promo-msg.error { background:#fde2e4; color:#c1121f; border:1.5px solid #f5c2c7; }
+  .promo-msg.info { background:#eef0ff; color:#667eea; border:1.5px solid #d8dcf0; }
+
+  .promo-info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .promo-info-box { background:#f7f8fc; border-radius:14px; padding:12px; text-align:center; }
+  .promo-info-box-icon { font-size:20px; margin-bottom:6px; }
+  .promo-info-box-title { font-size:11px; color:#8a8fa3; font-weight:800; text-transform:uppercase; letter-spacing:.4px; }
+  .promo-info-box-text { font-size:12px; color:#1a1a2e; font-weight:700; margin-top:4px; line-height:1.4; }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loadingScreen">
+  <div class="loader-logo">
+    <img src="https://i.postimg.cc/025gWYZt/9D899801-2DD7-44F2-B10F-0DCB1601FC52.png" alt="AZAD" />
+  </div>
+  <div class="spinner"></div>
+  <div class="loading-text">Loading your wallet...</div>
+</div>
+
+<div id="app">
+  <!-- FLOATING USER LOGO -->
+  <div id="floatingLogo"></div>
+
+  <!-- HOME -->
+  <div class="page active" id="page-home">
+    <div class="user-card">
+      <div class="user-avatar" id="userAvatar">U</div>
+      <div class="user-info">
+        <div class="user-name">
+          <span id="userName">User</span>
+          <svg class="verified-badge" viewBox="0 0 24 24" fill="#1DA1F2"><path d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34zm-11.71 4.2L6.8 12.46l1.41-1.42 2.26 2.26 4.8-5.23 1.47 1.36-6.2 6.77z"/></svg>
+        </div>
+        <div class="user-username" id="userUsername">@username</div>
+      </div>
+    </div>
+
+    <div class="balance-card">
+      <div class="balance-label">TOTAL BALANCE</div>
+      <div class="balance-amount"><span class="currency">$</span><span id="balanceAmount">0.00</span></div>
+      <div class="balance-usd">≈ <span id="balanceUsd">0.00</span> USD</div>
+    </div>
+
+    <!-- 5 ACTION BUTTONS -->
+    <div class="actions">
+      <button class="action-btn" data-action="withdraw">
+        <div class="action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+        <div class="action-label">Withdraw</div>
+      </button>
+      <button class="action-btn" data-action="swap">
+        <div class="action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l-4 4 4 4M17 14l4-4-4-4M3 14h18M21 10H3"/></svg></div>
+        <div class="action-label">Swap</div>
+      </button>
+      <button class="action-btn" data-action="promo">
+        <div class="action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#22b573" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg></div>
+        <div class="action-label">Promo Code</div>
+      </button>
+      <button class="action-btn" data-action="topup">
+        <div class="action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#ff9f1c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+        <div class="action-label">Top Up</div>
+      </button>
+      <button class="action-btn" data-action="history">
+        <div class="action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <div class="action-label">History</div>
+      </button>
+    </div>
+
+    <div class="section-title">My Portfolio</div>
+    <div class="portfolio">
+      <div class="coin-row">
+        <img class="coin-logo" src="https://i.postimg.cc/26mmCPFf/IMG-3191.png" alt="USDT" />
+        <div class="coin-info"><div class="coin-name">USDT</div><div class="coin-price">$1.0000</div></div>
+        <div class="coin-balance"><div class="coin-amount" id="usdtAmount">0.00</div><div class="coin-usd" id="usdtUsd">$0.00</div></div>
+      </div>
+      <div class="coin-row">
+        <img class="coin-logo" src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" />
+        <div class="coin-info"><div class="coin-name">AZAD Coin</div><div class="coin-price">$0.000582</div></div>
+        <div class="coin-balance"><div class="coin-amount" id="azadAmount">0.00</div><div class="coin-usd" id="azadUsd">$0.00</div></div>
+      </div>
+      <div class="coin-row">
+        <img class="coin-logo" src="https://i.postimg.cc/cJf0ys3t/IMG-3190.png" alt="AFG" />
+        <div class="coin-info"><div class="coin-name">AFG Coin</div><div class="coin-price">$0.001201</div></div>
+        <div class="coin-balance"><div class="coin-amount" id="afgAmount">0.00</div><div class="coin-usd" id="afgUsd">$0.00</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REFERRAL -->
+  <div class="page" id="page-referral">
+    <div class="referral-hero">
+      <div class="referral-hero-icon">🎁</div>
+      <div class="referral-hero-title">3-Level Referral System</div>
+      <div class="referral-hero-sub">Earn <strong>30</strong> / <strong>15</strong> / <strong>5 AZAD</strong><br/>from 3 levels of your team</div>
+    </div>
+
+    <div class="referral-card">
+      <div class="referral-label">YOUR REFERRAL LINK</div>
+      <div class="referral-link-box">
+        <div class="referral-link" id="referralLink">https://t.me/Azad_Afg_UsdtBot?startapp=...</div>
+        <button class="copy-btn" id="copyRefBtn">COPY</button>
+      </div>
+      <button class="share-btn" id="shareRefBtn">
+        <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
+        Share with Friends
+      </button>
+    </div>
+
+    <!-- 3 LEVELS -->
+    <div class="levels-title">🏆 Referral Levels</div>
+
+    <!-- Level 1 -->
+    <div class="level-card lvl1">
+      <div class="level-head">
+        <div class="level-badge">L1</div>
+        <div class="level-info">
+          <div class="level-name">Level 1 — Direct</div>
+          <div class="level-rate">
+            Reward: <img src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" /> <strong>30 AZAD</strong>
+          </div>
+        </div>
+      </div>
+      <div class="level-stats">
+        <div class="level-stat">
+          <img class="level-stat-icon" src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" />
+          <div class="level-stat-value" id="lvl1Count">0</div>
+          <div class="level-stat-label">Referrals</div>
+        </div>
+        <div class="level-stat">
+          <img class="level-stat-icon" src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" />
+          <div class="level-stat-value azad" id="lvl1Earned">0</div>
+          <div class="level-stat-label">AZAD Earned</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level 2 -->
+    <div class="level-card lvl2">
+      <div class="level-head">
+        <div class="level-badge">L2</div>
+        <div class="level-info">
+          <div class="level-name">Level 2 — Indirect</div>
+          <div class="level-rate">
+            Reward: <img src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" /> <strong>15 AZAD</strong>
+          </div>
+        </div>
+      </div>
+      <div class="level-stats">
+        <div class="level-stat">
+          <img class="level-stat-icon" src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" />
+          <div class="level-stat-value" id="lvl2Count">0</div>
+          <div class="level-stat-label">Referrals</div>
+        </div>
+        <div class="level-stat">
+          <img class="level-stat-icon" src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" />
+          <div class="level-stat-value azad" id="lvl2Earned">0</div>
+          <div class="level-stat-label">AZAD Earned</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level 3 -->
+    <div class="level-card lvl3">
+      <div class="level-head">
+        <div class="level-badge">L3</div>
+        <div class="level-info">
+          <div class="level-name">Level 3 — Extended</div>
+          <div class="level-rate">
+            Reward: <img src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" /> <strong>5 AZAD</strong>
+          </div>
+        </div>
+      </div>
+      <div class="level-stats">
+        <div class="level-stat">
+          <img class="level-stat-icon" src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" />
+          <div class="level-stat-value" id="lvl3Count">0</div>
+          <div class="level-stat-label">Referrals</div>
+        </div>
+        <div class="level-stat">
+          <img class="level-stat-icon" src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" />
+          <div class="level-stat-value azad" id="lvl3Earned">0</div>
+          <div class="level-stat-label">AZAD Earned</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TASK -->
+  <div class="page" id="page-task">
+    <div class="section-title" style="font-size:22px; margin-bottom:16px;">Tasks</div>
+    <div class="daily-card" id="dailyCard">
+      <div class="daily-icon">🎁</div>
+      <div class="daily-info">
+        <div class="daily-title">Daily Check-in</div>
+        <div class="daily-reward">Earn <strong>$0.01</strong> every 24h</div>
+      </div>
+      <button class="daily-btn" id="dailyBtn">Claim</button>
+    </div>
+    <div class="section-title" id="adTasksTitle" style="display:none;">Partner Tasks</div>
+    <div id="adTasksList"></div>
+    <div class="empty-tasks" id="emptyTasks" style="display:none;">
+      <div class="empty-tasks-icon">📋</div>
+      <div class="empty-tasks-text">No tasks available</div>
+    </div>
+  </div>
+
+  <!-- TOPUP -->
+  <div class="page" id="page-topup">
+    <div style="background:linear-gradient(135deg,#ff9f1c 0%,#f77f00 100%); border-radius:24px; padding:22px; color:#fff; text-align:center; box-shadow:0 12px 30px rgba(255,159,28,.35); margin-bottom:20px; position:relative; overflow:hidden;">
+      <div style="width:60px; height:60px; border-radius:18px; background:rgba(255,255,255,.25); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; font-size:28px;">📱</div>
+      <div style="font-size:20px; font-weight:800; margin-bottom:4px;">Mobile Top Up</div>
+      <div style="font-size:13px; opacity:.9;">Recharge any Afghan mobile number instantly</div>
+    </div>
+
+    <div class="step-label"><span class="step-num">1</span> Select Network</div>
+    <div class="provider-grid" id="providerGrid">
+      <div class="provider-option" data-provider="AWCC">
+        <img class="provider-logo" src="https://upload.wikimedia.org/wikipedia/en/thumb/0/0a/AWCC_logo.png/180px-AWCC_logo.png" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23e63946%22 rx=%2220%22/><text x=%2250%22 y=%2265%22 font-size=%2240%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22>A</text></svg>';" />
+        <span>AWCC</span>
+      </div>
+      <div class="provider-option" data-provider="ROSHAN">
+        <img class="provider-logo" src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Roshan_logo.png/180px-Roshan_logo.png" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23e63946%22 rx=%2220%22/><text x=%2250%22 y=%2265%22 font-size=%2240%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22>R</text></svg>';" />
+        <span>ROSHAN</span>
+      </div>
+      <div class="provider-option" data-provider="ETISALAT">
+        <img class="provider-logo" src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Etisalat_logo.svg/180px-Etisalat_logo.svg.png" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%2322b573%22 rx=%2220%22/><text x=%2250%22 y=%2265%22 font-size=%2240%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22>E</text></svg>';" />
+        <span>ETISALAT</span>
+      </div>
+      <div class="provider-option" data-provider="ATOMA">
+        <img class="provider-logo" src="https://upload.wikimedia.org/wikipedia/en/thumb/6/6c/ATOMA_logo.png/180px-ATOMA_logo.png" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23ff9f1c%22 rx=%2220%22/><text x=%2250%22 y=%2265%22 font-size=%2240%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22>A</text></svg>';" />
+        <span>ATOMA</span>
+      </div>
+      <div class="provider-option" data-provider="SALAM">
+        <img class="provider-logo" src="https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Salaam_Telecom_logo.png/180px-Salaam_Telecom_logo.png" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23667eea%22 rx=%2220%22/><text x=%2250%22 y=%2265%22 font-size=%2240%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22>S</text></svg>';" />
+        <span>SALAM</span>
+      </div>
+    </div>
+
+    <div class="step-label"><span class="step-num">2</span> Enter Phone Number</div>
+    <div class="phone-input-wrap">
+      <span class="phone-prefix">+93</span>
+      <input type="tel" id="phoneNumber" placeholder="703688990" inputmode="numeric" maxlength="10" />
+    </div>
+
+    <div class="step-label"><span class="step-num">3</span> Payment Method</div>
+    <div class="payment-selector" id="paymentSelector">
+      <div class="payment-option selected" data-coin="usdt"><img src="https://i.postimg.cc/26mmCPFf/IMG-3191.png" alt="USDT" /><span>USDT</span></div>
+      <div class="payment-option" data-coin="azad"><img src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" /><span>AZAD</span></div>
+      <div class="payment-option" data-coin="afg"><img src="https://i.postimg.cc/cJf0ys3t/IMG-3190.png" alt="AFG" /><span>AFG</span></div>
+    </div>
+
+    <div class="step-label"><span class="step-num">4</span> Amount</div>
+    <div class="amount-input-wrap">
+      <input type="number" id="topupAmount" placeholder="0.00" inputmode="decimal" />
+      <span class="amount-suffix" id="topupSuffix">USDT</span>
+    </div>
+    <div class="min-hint" id="topupMinHint">Minimum: 0.5 USDT</div>
+    <div class="min-hint" id="topupBalHint" style="color:#22b573;">Available: 0.00 USDT</div>
+
+    <div id="conversionBox" style="display:none; background:linear-gradient(135deg,#e8f5e9 0%,#d1f7dd 100%); border-radius:16px; padding:16px 18px; margin-top:12px; align-items:center; gap:12px; border:1.5px solid #b8ecc8;">
+      <div style="width:42px; height:42px; border-radius:12px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:20px;">💵</div>
+      <div style="flex:1;">
+        <div style="font-size:11px; color:#16803c; font-weight:700; text-transform:uppercase; letter-spacing:.5px; opacity:.8;">You will receive</div>
+        <div style="font-size:20px; color:#16803c; font-weight:900; margin-top:3px;"><span id="afnAmount">0</span> <span style="font-size:14px; font-weight:800;">AFN</span></div>
+      </div>
+    </div>
+
+    <button class="topup-submit-btn" id="submitTopup" disabled>Top Up Now</button>
+  </div>
+
+  <!-- PROMO CODE PAGE -->
+  <div class="page" id="page-promo">
+    <div class="promo-hero">
+      <div class="promo-icon">🎟️</div>
+      <div class="promo-title">Promo Code</div>
+      <div class="promo-sub">Enter your promo code and get instant bonus rewards</div>
+    </div>
+
+    <div class="promo-card">
+      <label class="promo-label">Enter Promo Code</label>
+      <div class="promo-input-wrap">
+        <input type="text" id="promoCodeInput" placeholder="AZAD2025" maxlength="20" autocomplete="off" />
+        <span class="promo-input-suffix">🎁</span>
+      </div>
+      <button class="promo-submit-btn" id="submitPromo" disabled>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg>
+        Redeem Code
+      </button>
+      <div class="promo-msg" id="promoMsg"></div>
+    </div>
+
+    <div class="promo-info-grid">
+      <div class="promo-info-box">
+        <div class="promo-info-box-icon">⚡</div>
+        <div class="promo-info-box-title">Instant</div>
+        <div class="promo-info-box-text">Bonus added immediately</div>
+      </div>
+      <div class="promo-info-box">
+        <div class="promo-info-box-icon">🔒</div>
+        <div class="promo-info-box-title">One-Time</div>
+        <div class="promo-info-box-text">Each code once per user</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV - 3 tabs -->
+  <div class="bottom-nav">
+    <button class="nav-item active" data-page="home">
+      <div class="nav-icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-7 9 7v10a2 2 0 01-2 2h-4v-7h-6v7H5a2 2 0 01-2-2V10z"/></svg></div>
+      <div class="nav-label">Home</div>
+    </button>
+    <button class="nav-item" data-page="referral">
+      <div class="nav-icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+      <div class="nav-label">Referral</div>
+    </button>
+    <button class="nav-item" data-page="task">
+      <div class="nav-icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+      <div class="nav-label">Task</div>
+    </button>
+  </div>
+
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="withdrawModal">
+  <div class="modal-content">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Withdraw</div>
+    <div class="modal-subtitle">Select currency and enter amount</div>
+    <label class="modal-label">Select Currency</label>
+    <div class="currency-selector" id="currencySelector">
+      <div class="currency-option selected" data-coin="usdt"><img src="https://i.postimg.cc/26mmCPFf/IMG-3191.png" alt="USDT" /><span>USDT</span></div>
+      <div class="currency-option" data-coin="azad"><img src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" alt="AZAD" /><span>AZAD</span></div>
+      <div class="currency-option" data-coin="afg"><img src="https://i.postimg.cc/cJf0ys3t/IMG-3190.png" alt="AFG" /><span>AFG</span></div>
+    </div>
+    <label class="modal-label">Amount</label>
+    <div class="input-wrap">
+      <input type="number" id="withdrawAmount" placeholder="0.00" inputmode="decimal" />
+      <span class="input-suffix" id="amountSuffix">USDT</span>
+    </div>
+    <div class="min-hint" id="minHint">Minimum: 0.5 USDT</div>
+    <div class="min-hint" id="balHint" style="color:#22b573;">Available: 0.00 USDT</div>
+    <label class="modal-label">BEP20 Address</label>
+    <div class="address-box"><input type="text" id="withdrawAddress" placeholder="0x..." /></div>
+    <button class="submit-btn" id="submitWithdraw">Confirm Withdrawal</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="swapModal">
+  <div class="modal-content">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Swap</div>
+    <div class="modal-subtitle">Exchange coins instantly • No fees</div>
+    <label class="modal-label">From</label>
+    <div class="swap-box">
+      <div class="swap-row">
+        <div class="swap-coin-select" id="fromCoinSelect">
+          <img src="https://i.postimg.cc/26mmCPFf/IMG-3191.png" id="fromCoinLogo" alt="coin" />
+          <span class="swap-coin-name" id="fromCoinName">USDT</span>
+          <svg class="swap-chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <input type="number" class="swap-input" id="fromAmount" placeholder="0" inputmode="decimal" />
+      </div>
+      <div class="swap-bal">Balance: <strong id="fromBalance">0.00</strong></div>
+    </div>
+    <div class="swap-swap-icon">
+      <button id="swapDirectionBtn" type="button"><svg viewBox="0 0 24 24"><path d="M7 4v13M7 4L3 8M7 4l4 4M17 20V7M17 20l4-4M17 20l-4-4"/></svg></button>
+    </div>
+    <label class="modal-label">To</label>
+    <div class="swap-box">
+      <div class="swap-row">
+        <div class="swap-coin-select" id="toCoinSelect">
+          <img src="https://i.postimg.cc/wjy925Tb/IMG-3189.jpg" id="toCoinLogo" alt="coin" />
+          <span class="swap-coin-name" id="toCoinName">AZAD</span>
+          <svg class="swap-chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <input type="number" class="swap-input" id="toAmount" placeholder="0" readonly />
+      </div>
+      <div class="swap-bal">Balance: <strong id="toBalance">0.00</strong></div>
+    </div>
+    <div class="swap-info">
+      <div class="swap-info-item">Rate</div>
+      <div class="swap-info-item"><strong id="swapRate">1 USDT = 1718.21 AZAD</strong></div>
+    </div>
+    <button class="submit-btn" id="submitSwap" disabled>Confirm Swap</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="coinPickerModal" style="z-index:1100;">
+  <div class="modal-content">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="coinPickerTitle">Select Coin</div>
+    <div class="modal-subtitle">Choose a coin to continue</div>
+    <div class="coin-picker-list" id="coinPickerList"></div>
+  </div>
+</div>
+
+<div id="withdrawProcessing">
+  <div class="process-ring"></div>
+  <div class="process-text">Processing...</div>
+  <div class="process-sub">Please wait</div>
+</div>
+
+<div class="modal-overlay" id="historyModal">
+  <div class="modal-content">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Transaction History</div>
+    <div class="modal-subtitle">All your activity</div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, get, set, update, push, onValue }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCTiagMkx4cdlzsSG30RFFyiD47atf3U68",
+  authDomain: "azadafgusdt.firebaseapp.com",
+  databaseURL: "https://azadafgusdt-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "azadafgusdt",
+  storageBucket: "azadafgusdt.firebasestorage.app",
+  messagingSenderId: "437743753035",
+  appId: "1:437743753035:web:f422c82c65340c69ee3ace",
+  measurementId: "G-YH8BRKZ6FG"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
+
+const PRICES = { usdt: 1.0000, azad: 0.000582, afg: 0.001201 };
+const MIN_WITHDRAW = { usdt: 0.5, azad: 500, afg: 300 };
+const MIN_TOPUP = { usdt: 0.5, azad: 1000, afg: 500 };
+const COIN_LOGOS = {
+  usdt: "https://i.postimg.cc/26mmCPFf/IMG-3191.png",
+  azad: "https://i.postimg.cc/wjy925Tb/IMG-3189.jpg",
+  afg: "https://i.postimg.cc/cJf0ys3t/IMG-3190.png"
+};
+const COIN_NAMES = { usdt: "USDT", azad: "AZAD Coin", afg: "AFG Coin" };
+const COIN_SHORT = { usdt: "USDT", azad: "AZAD", afg: "AFG" };
+
+const BOT_USERNAME = "Azad_Afg_UsdtBot";
+const ADMIN_USERNAME = "afgazadusdtadmin";
+
+const REFERRAL_REWARDS = { level1: 30, level2: 15, level3: 5 };
+const DAILY_REWARD = 0.01;
+const DAILY_COOLDOWN = 24 * 60 * 60 * 1000;
+const USD_TO_AFN = 65;
+const CHECK_API = "https://azadcoinafgcoin.roohullaha090.workers.dev";
+
+const tg = window.Telegram?.WebApp;
+let tgUser = null;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  try { tg.requestFullscreen?.(); } catch(e) {}
+  tgUser = tg.initDataUnsafe?.user || null;
+}
+
+let currentUser = null;
+let currentBalances = { usdt: 0, azad: 0, afg: 0 };
+let selectedCoin = "usdt";
+let historyCache = {};
+let swapFrom = "usdt", swapTo = "azad", pickerTarget = "from";
+let adTasks = {}, completedTasks = {};
+let topupProvider = null, topupCoin = "usdt";
+let usedPromoCodes = {};
+
+/* HELPERS */
+function getInitials(name) {
+  if (!name) return "U";
+  return name.trim().split(/\s+/).map(w => w[0]).slice(0,2).join("").toUpperCase();
+}
+function formatNumber(n) {
+  const num = Number(n) || 0;
+  if (num >= 1_000_000) return (num/1_000_000).toFixed(2) + "M";
+  if (num >= 1_000) return (num/1_000).toFixed(2) + "K";
+  return num.toFixed(2);
+}
+function formatDate(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) + " · " + d.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+}
+function timeUntil(ts) {
+  const diff = ts - Date.now();
+  if (diff <= 0) return "Ready";
+  const hours = Math.floor(diff / (1000*60*60));
+  const mins = Math.floor((diff % (1000*60*60)) / (1000*60));
+  const secs = Math.floor((diff % (1000*60)) / 1000);
+  if (hours > 0) return `${hours}h ${mins}m`;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
+}
+
+/* FLOATING LOGO */
+let floatingPos = { x: 0, y: 0 };
+
+function initFloatingLogo() {
+  const el = document.getElementById("floatingLogo");
+  if (!el) return;
+
+  const name = tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") : "U";
+  const photo = tgUser?.photo_url || null;
+  if (photo) el.innerHTML = `<img src="${photo}" alt="me" />`;
+  else el.textContent = getInitials(name);
+
+  try {
+    const saved = JSON.parse(localStorage.getItem("floatingLogoPos") || "null");
+    if (saved && typeof saved.x === "number" && typeof saved.y === "number") floatingPos = saved;
+    else floatingPos = { x: 16, y: window.innerHeight - 160 };
+  } catch(e) {
+    floatingPos = { x: 16, y: window.innerHeight - 160 };
+  }
+
+  applyFloatingPos();
+
+  let isDragging = false, moved = false;
+  let dragStart = { x: 0, y: 0 };
+  let startPos = { x: 0, y: 0 };
+
+  const onPointerDown = (e) => {
+    isDragging = true; moved = false;
+    const p = e.touches ? e.touches[0] : e;
+    dragStart = { x: p.clientX, y: p.clientY };
+    startPos = { ...floatingPos };
+    el.style.transition = "none";
+  };
+
+  const onPointerMove = (e) => {
+    if (!isDragging) return;
+    const p = e.touches ? e.touches[0] : e;
+    const dx = p.clientX - dragStart.x;
+    const dy = p.clientY - dragStart.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+    const maxX = window.innerWidth - 68;
+    const maxY = window.innerHeight - 68;
+    floatingPos = {
+      x: Math.max(4, Math.min(maxX, startPos.x + dx)),
+      y: Math.max(4, Math.min(maxY, startPos.y + dy))
+    };
+    applyFloatingPos();
+  };
+
+  const onPointerUp = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    el.style.transition = "box-shadow .2s ease";
+    try { localStorage.setItem("floatingLogoPos", JSON.stringify(floatingPos)); } catch(e) {}
+    if (!moved) openAdminChat();
+  };
+
+  el.addEventListener("mousedown", onPointerDown);
+  el.addEventListener("touchstart", onPointerDown, { passive: true });
+  document.addEventListener("mousemove", onPointerMove);
+  document.addEventListener("touchmove", onPointerMove, { passive: true });
+  document.addEventListener("mouseup", onPointerUp);
+  document.addEventListener("touchend", onPointerUp);
+
+  window.addEventListener("resize", () => {
+    floatingPos.x = Math.min(floatingPos.x, window.innerWidth - 68);
+    floatingPos.y = Math.min(floatingPos.y, window.innerHeight - 68);
+    applyFloatingPos();
+  });
+}
+function applyFloatingPos() {
+  const el = document.getElementById("floatingLogo");
+  if (el) { el.style.left = floatingPos.x + "px"; el.style.top = floatingPos.y + "px"; }
+}
+function openAdminChat() {
+  const url = `https://t.me/${ADMIN_USERNAME}`;
+  if (tg?.openTelegramLink) tg.openTelegramLink(url);
+  else window.open(url, "_blank");
+  if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
+}
+
+/* INIT USER */
+function initUserUI() {
+  const name = tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") : "Guest User";
+  const username = tgUser?.username ? "@" + tgUser.username : "@guest";
+  const userId = tgUser?.id || 0;
+  const photo = tgUser?.photo_url || null;
+
+  document.getElementById("userName").textContent = name;
+  document.getElementById("userUsername").textContent = username;
+  const avatarEl = document.getElementById("userAvatar");
+  if (photo) avatarEl.innerHTML = `<img src="${photo}" alt="avatar" />`;
+  else avatarEl.textContent = getInitials(name);
+
+  document.getElementById("referralLink").textContent = `https://t.me/${BOT_USERNAME}?startapp=${userId}`;
+
+  initFloatingLogo();
+}
+
+/* REFERRAL PROCESSING */
+async function processReferral(newUserId, referrerId) {
+  if (!referrerId || referrerId === newUserId) return;
+  if (!/^\d+$/.test(referrerId)) return;
+
+  const referrerSnap = await get(ref(db, "users/" + referrerId));
+  if (!referrerSnap.exists()) return;
+
+  const referrerData = referrerSnap.val();
+  const newUserName = [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(" ") || "User";
+
+  // LEVEL 1
+  await giveReferralReward(referrerId, "level1", REFERRAL_REWARDS.level1, newUserId, newUserName);
+
+  // LEVEL 2
+  const referrerOfReferrer = referrerData.referred_by;
+  if (referrerOfReferrer && /^\d+$/.test(referrerOfReferrer)) {
+    const lvl2Snap = await get(ref(db, "users/" + referrerOfReferrer));
+    if (lvl2Snap.exists()) {
+      await giveReferralReward(referrerOfReferrer, "level2", REFERRAL_REWARDS.level2, newUserId, newUserName);
+
+      // LEVEL 3
+      const lvl3Data = lvl2Snap.val();
+      const lvl3Referrer = lvl3Data.referred_by;
+      if (lvl3Referrer && /^\d+$/.test(lvl3Referrer)) {
+        const lvl3Snap = await get(ref(db, "users/" + lvl3Referrer));
+        if (lvl3Snap.exists()) {
+          await giveReferralReward(lvl3Referrer, "level3", REFERRAL_REWARDS.level3, newUserId, newUserName);
+        }
+      }
+    }
+  }
+}
+
+async function giveReferralReward(referrerId, level, amount, fromUserId, fromUserName) {
+  try {
+    const referrerRef = ref(db, "users/" + referrerId);
+    const snap = await get(referrerRef);
+    if (!snap.exists()) return;
+    const data = snap.val();
+    const bal = data.balance || { usdt: 0, azad: 0, afg: 0 };
+    bal.azad = (Number(bal.azad) || 0) + amount;
+
+    const lvlNum = level.slice(-1);
+    const updateData = {
+      balance: bal,
+      [`level${lvlNum}_count`]: (Number(data[`level${lvlNum}_count`]) || 0) + 1,
+      [`level${lvlNum}_earned`]: (Number(data[`level${lvlNum}_earned`]) || 0) + amount,
+      referral_earnings: (Number(data.referral_earnings) || 0) + amount
+    };
+    if (level === "level1") updateData.referral_count = (Number(data.referral_count) || 0) + 1;
+    await update(referrerRef, updateData);
+
+    const historyRef = ref(db, `users/${referrerId}/history`);
+    await push(historyRef, {
+      type: "referral",
+      level: level,
+      coin: "azad",
+      coin_name: `Level ${lvlNum} Referral Bonus`,
+      logo: COIN_LOGOS.azad,
+      amount: amount,
+      from_user: fromUserName,
+      from_id: fromUserId,
+      status: "completed",
+      timestamp: Date.now()
+    });
+  } catch (err) { console.error("Referral reward error:", err); }
+}
+
+/* LOAD USER */
+async function loadUserBalances() {
+  if (!tgUser) {
+    const demo = {
+      id: "demo", first_name: "Demo", last_name: "User",
+      balance: { usdt: 5, azad: 1200, afg: 800 },
+      referral_count: 0, referral_earnings: 0,
+      total_withdrawn: 0, created_at: Date.now()
+    };
+    currentUser = demo;
+    currentBalances = demo.balance;
+    updateBalancesUI(demo);
+    loadAdTasks();
+    loadCompletedTasks();
+    updateDailyButton();
+    updateTopupValidation();
+    loadUsedPromoCodes();
+    return;
+  }
+
+  const userId = String(tgUser.id);
+  const userRef = ref(db, "users/" + userId);
+
+  try {
+    const snap = await get(userRef);
+
+    if (snap.exists()) {
+      const data = snap.val();
+      const patch = {};
+      if (!data.balance) patch.balance = { usdt: 0, azad: 0, afg: 0 };
+      if (data.total_withdrawn === undefined) patch.total_withdrawn = 0;
+      if (data.referral_count === undefined) patch.referral_count = 0;
+      if (data.referral_earnings === undefined) patch.referral_earnings = 0;
+      if (data.level1_count === undefined) patch.level1_count = 0;
+      if (data.level2_count === undefined) patch.level2_count = 0;
+      if (data.level3_count === undefined) patch.level3_count = 0;
+      if (data.level1_earned === undefined) patch.level1_earned = 0;
+      if (data.level2_earned === undefined) patch.level2_earned = 0;
+      if (data.level3_earned === undefined) patch.level3_earned = 0;
+      if (Object.keys(patch).length) await update(userRef, patch);
+      currentUser = { ...data, ...patch };
+      currentBalances = currentUser.balance;
+      updateBalancesUI(currentUser);
+    } else {
+      const referrerId = tg?.initDataUnsafe?.start_param || null;
+      let referredBy = null;
+      if (referrerId && referrerId !== userId && /^\d+$/.test(referrerId)) referredBy = referrerId;
+
+      const newUser = {
+        id: userId,
+        first_name: tgUser.first_name || "",
+        last_name: tgUser.last_name || "",
+        username: tgUser.username || "",
+        photo_url: tgUser.photo_url || "",
+        language_code: tgUser.language_code || "en",
+        is_premium: tgUser.is_premium || false,
+        balance: { usdt: 0, azad: 0, afg: 0 },
+        referral_count: 0,
+        referral_earnings: 0,
+        level1_count: 0, level2_count: 0, level3_count: 0,
+        level1_earned: 0, level2_earned: 0, level3_earned: 0,
+        total_withdrawn: 0,
+        referred_by: referredBy,
+        created_at: Date.now()
+      };
+      await set(userRef, newUser);
+      currentUser = newUser;
+      currentBalances = newUser.balance;
+      updateBalancesUI(newUser);
+
+      if (referredBy) {
+        await processReferral(userId, referredBy);
+        setTimeout(() => showToast("🎉 Welcome! Referral processed."), 1200);
+      }
+    }
+
+    onValue(userRef, (s) => {
+      if (s.exists()) {
+        currentUser = s.val();
+        currentBalances = currentUser.balance || { usdt: 0, azad: 0, afg: 0 };
+        updateBalancesUI(currentUser);
+        updateSwapBalances();
+        updateDailyButton();
+        updateTopupValidation();
+      }
+    });
+
+    loadHistory();
+    loadAdTasks();
+    loadCompletedTasks();
+    loadUsedPromoCodes();
+  } catch (err) { console.error("Firebase error:", err); }
+}
+
+function updateBalancesUI(user) {
+  const b = user.balance || { usdt: 0, azad: 0, afg: 0 };
+  const usdt = Number(b.usdt) || 0, azad = Number(b.azad) || 0, afg = Number(b.afg) || 0;
+  const usdtUsd = usdt * PRICES.usdt, azadUsd = azad * PRICES.azad, afgUsd = afg * PRICES.afg;
+  const totalUsd = usdtUsd + azadUsd + afgUsd;
+
+  document.getElementById("balanceAmount").textContent = totalUsd.toFixed(2);
+  document.getElementById("balanceUsd").textContent = totalUsd.toFixed(2);
+
+  document.getElementById("usdtAmount").textContent = formatNumber(usdt);
+  document.getElementById("usdtUsd").textContent = "$" + usdtUsd.toFixed(2);
+  document.getElementById("azadAmount").textContent = formatNumber(azad);
+  document.getElementById("azadUsd").textContent = "$" + azadUsd.toFixed(2);
+  document.getElementById("afgAmount").textContent = formatNumber(afg);
+  document.getElementById("afgUsd").textContent = "$" + afgUsd.toFixed(2);
+
+  document.getElementById("lvl1Count").textContent = user.level1_count || 0;
+  document.getElementById("lvl1Earned").textContent = formatNumber(user.level1_earned || 0);
+  document.getElementById("lvl2Count").textContent = user.level2_count || 0;
+  document.getElementById("lvl2Earned").textContent = formatNumber(user.level2_earned || 0);
+  document.getElementById("lvl3Count").textContent = user.level3_count || 0;
+  document.getElementById("lvl3Earned").textContent = formatNumber(user.level3_earned || 0);
+}
+
+function switchPage(pageName) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById("page-" + pageName)?.classList.add("active");
+  document.querySelector(`.nav-item[data-page="${pageName}"]`)?.classList.add("active");
+  if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  if (pageName === "task") { loadAdTasks(); loadCompletedTasks(); updateDailyButton(); }
+  if (pageName === "topup") updateTopupValidation();
+  if (pageName === "promo") updatePromoButtonState();
+  document.querySelector(".page.active")?.scrollTo(0, 0);
+}
+document.querySelectorAll(".nav-item").forEach(btn => {
+  btn.addEventListener("click", () => switchPage(btn.dataset.page));
+});
+
+/* ACTIONS */
+document.querySelectorAll(".action-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
+    const a = btn.dataset.action;
+    if (a === "withdraw") openWithdrawModal();
+    else if (a === "history") openHistoryModal();
+    else if (a === "swap") openSwapModal();
+    else if (a === "topup") switchPage("topup");
+    else if (a === "promo") switchPage("promo");
+  });
+});
+
+/* ============ PROMO CODE ============ */
+const promoCodeInput = document.getElementById("promoCodeInput");
+const submitPromo = document.getElementById("submitPromo");
+const promoMsg = document.getElementById("promoMsg");
+
+function updatePromoButtonState() {
+  const code = (promoCodeInput.value || "").trim();
+  submitPromo.disabled = !code || code.length < 3;
+}
+
+promoCodeInput.addEventListener("input", () => {
+  promoCodeInput.value = promoCodeInput.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+  updatePromoButtonState();
+  hidePromoMsg();
+});
+
+promoCodeInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter" && !submitPromo.disabled) submitPromo.click();
+});
+
+function showPromoMsg(text, type = "info") {
+  promoMsg.textContent = text;
+  promoMsg.className = "promo-msg show " + type;
+}
+function hidePromoMsg() {
+  promoMsg.className = "promo-msg";
+  promoMsg.textContent = "";
+}
+
+async function loadUsedPromoCodes() {
+  if (!tgUser) return;
+  const userId = String(tgUser.id);
+  const usedRef = ref(db, `users/${userId}/used_promos`);
+  onValue(usedRef, (snap) => {
+    usedPromoCodes = snap.exists() ? snap.val() : {};
+  });
+}
+
+submitPromo.addEventListener("click", async () => {
+  const code = (promoCodeInput.value || "").trim().toUpperCase();
+  if (!code || code.length < 3) {
+    showPromoMsg("❌ Please enter a valid promo code", "error");
+    return;
+  }
+
+  if (!tgUser) {
+    showPromoMsg("❌ Only for Telegram users", "error");
+    return;
+  }
+
+  // Already used?
+  if (usedPromoCodes[code]) {
+    showPromoMsg("❌ You have already used this code", "error");
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("error");
+    return;
+  }
+
+  if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("medium");
+  submitPromo.disabled = true;
+  submitPromo.innerHTML = `<span class="spinner-small"></span> Checking...`;
+
+  try {
+    // Look up promo code in DB
+    const promoRef = ref(db, "promo/" + code);
+    const promoSnap = await get(promoRef);
+
+    if (!promoSnap.exists()) {
+      showPromoMsg("❌ Invalid promo code", "error");
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("error");
+      submitPromo.disabled = false;
+      submitPromo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg> Redeem Code`;
+      return;
+    }
+
+    const promoData = promoSnap.val();
+
+    // Check active
+    if (promoData.active === false) {
+      showPromoMsg("❌ This promo code is no longer active", "error");
+      submitPromo.disabled = false;
+      submitPromo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg> Redeem Code`;
+      return;
+    }
+
+    // Check expiry
+    if (promoData.expires_at && Date.now() > Number(promoData.expires_at)) {
+      showPromoMsg("❌ This promo code has expired", "error");
+      submitPromo.disabled = false;
+      submitPromo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg> Redeem Code`;
+      return;
+    }
+
+    // Check max uses
+    if (promoData.max_uses && Number(promoData.used_count || 0) >= Number(promoData.max_uses)) {
+      showPromoMsg("❌ This promo code has reached its limit", "error");
+      submitPromo.disabled = false;
+      submitPromo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg> Redeem Code`;
+      return;
+    }
+
+    // Validate reward
+    const rewardCoin = (promoData.coin || "usdt").toLowerCase();
+    const rewardAmount = Number(promoData.amount) || 0;
+
+    if (!["usdt", "azad", "afg"].includes(rewardCoin)) {
+      showPromoMsg("❌ Invalid reward coin", "error");
+      submitPromo.disabled = false;
+      submitPromo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg> Redeem Code`;
+      return;
+    }
+    if (rewardAmount <= 0) {
+      showPromoMsg("❌ Invalid reward amount", "error");
+      submitPromo.disabled = false;
+      submitPromo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg> Redeem Code`;
+      return;
+    }
+
+    // Apply reward
+    const userId = String(tgUser.id);
+    const userRef = ref(db, "users/" + userId);
+    const newBalances = { ...currentBalances };
+    newBalances[rewardCoin] = (Number(newBalances[rewardCoin]) || 0) + rewardAmount;
+
+    await update(userRef, { balance: newBalances });
+
+    // Mark used
+    const usedRef = ref(db, `users/${userId}/used_promos/${code}`);
+    await set(usedRef, { timestamp: Date.now(), coin: rewardCoin, amount: rewardAmount });
+
+    // Increment promo usage counter
+    const newUsedCount = Number(promoData.used_count || 0) + 1;
+    await update(promoRef, { used_count: newUsedCount });
+
+    // History
+    const historyRef = ref(db, `users/${userId}/history`);
+    await push(historyRef, {
+      type: "promo",
+      code: code,
+      coin: rewardCoin,
+      coin_name: `${COIN_NAMES[rewardCoin]} Promo Bonus`,
+      logo: COIN_LOGOS[rewardCoin],
+      amount: rewardAmount,
+      status: "completed",
+      timestamp: Date.now()
+    });
+
+    showPromoMsg(`✅ Success! +${rewardAmount} ${COIN_SHORT[rewardCoin]} added to your balance`, "success");
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    showToast(`🎁 +${rewardAmount} ${COIN_SHORT[rewardCoin]}`);
+
+    promoCodeInput.value = "";
+    submitPromo.disabled = true;
+    submitPromo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg> Redeem Code`;
+
+  } catch (err) {
+    console.error("Promo error:", err);
+    showPromoMsg("❌ Something went wrong. Try again.", "error");
+    submitPromo.disabled = false;
+    submitPromo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7"/></svg> Redeem Code`;
+  }
+});
+
+/* DAILY */
+const dailyBtn = document.getElementById("dailyBtn");
+let dailyTimer = null;
+async function updateDailyButton() {
+  if (!currentUser) return;
+  const lastClaim = Number(currentUser.last_daily_claim) || 0;
+  const nextClaim = lastClaim + DAILY_COOLDOWN;
+  const now = Date.now();
+  if (now >= nextClaim) { dailyBtn.textContent = "Claim"; dailyBtn.classList.remove("claimed"); dailyBtn.disabled = false; }
+  else {
+    dailyBtn.classList.add("claimed"); dailyBtn.disabled = true;
+    if (dailyTimer) clearInterval(dailyTimer);
+    const update = () => {
+      const remaining = nextClaim - Date.now();
+      if (remaining <= 0) { clearInterval(dailyTimer); updateDailyButton(); return; }
+      dailyBtn.textContent = timeUntil(nextClaim);
+    };
+    update();
+    dailyTimer = setInterval(update, 1000);
+  }
+}
+dailyBtn.addEventListener("click", async () => {
+  if (!currentUser || dailyBtn.disabled) return;
+  const lastClaim = Number(currentUser.last_daily_claim) || 0;
+  if (Date.now() < lastClaim + DAILY_COOLDOWN) { showToast("Already claimed. Come back later!"); return; }
+  if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("medium");
+  dailyBtn.disabled = true;
+  dailyBtn.innerHTML = `<span class="spinner-small"></span>`;
+  try {
+    const userId = String(tgUser?.id || "demo");
+    const userRef = ref(db, "users/" + userId);
+    const newUsdt = (Number(currentBalances.usdt) || 0) + DAILY_REWARD;
+    await update(userRef, { balance: { ...currentBalances, usdt: newUsdt }, last_daily_claim: Date.now() });
+    const historyRef = ref(db, `users/${userId}/history`);
+    await push(historyRef, { type: "daily", coin: "usdt", coin_name: "Daily Bonus", logo: COIN_LOGOS.usdt, amount: DAILY_REWARD, status: "completed", timestamp: Date.now() });
+    showToast(`+$${DAILY_REWARD.toFixed(2)} Claimed!`);
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    setTimeout(updateDailyButton, 500);
+  } catch (err) { console.error(err); showToast("Claim failed"); dailyBtn.disabled = false; dailyBtn.textContent = "Claim"; }
+});
+
+/* AD TASKS */
+async function loadAdTasks() {
+  try {
+    const adRef = ref(db, "adtask");
+    const snap = await get(adRef);
+    adTasks = snap.exists() ? snap.val() : {};
+    renderAdTasks();
+  } catch (err) { console.error("Ad tasks error:", err); }
+}
+async function loadCompletedTasks() {
+  if (!tgUser) return;
+  const userId = String(tgUser.id);
+  const cRef = ref(db, `users/${userId}/completed_tasks`);
+  onValue(cRef, (snap) => { completedTasks = snap.exists() ? snap.val() : {}; renderAdTasks(); });
+}
+function renderAdTasks() {
+  const list = document.getElementById("adTasksList");
+  const empty = document.getElementById("emptyTasks");
+  const title = document.getElementById("adTasksTitle");
+  const tasks = Object.entries(adTasks || {}).filter(([id, t]) => t && t.active !== false && t.name && t.link).map(([id, t]) => ({ id, ...t }));
+  if (!tasks.length) { list.innerHTML = ""; empty.style.display = "block"; title.style.display = "none"; return; }
+  empty.style.display = "none"; title.style.display = "block";
+  list.innerHTML = tasks.map(t => {
+    const done = !!completedTasks[t.id];
+    const reward = Number(t.reward) || 0;
+    const logoHtml = t.logo ? `<div class="task-icon"><img src="${t.logo}" alt="task" onerror="this.parentElement.classList.add('emoji'); this.parentElement.innerHTML='📋';" /></div>` : `<div class="task-icon emoji">📋</div>`;
+    return `<div class="task-card">${logoHtml}<div class="task-info"><div class="task-title">${t.name}</div><div class="task-reward">+$${reward.toFixed(2)} reward</div></div><button class="task-btn ${done ? 'done' : ''}" data-task-id="${t.id}" ${done ? 'disabled' : ''}>${done ? '✓ Done' : 'Start'}</button></div>`;
+  }).join("");
+  list.querySelectorAll(".task-btn").forEach(btn => { btn.addEventListener("click", () => handleAdTask(btn.dataset.taskId)); });
+}
+async function handleAdTask(taskId) {
+  const task = adTasks[taskId];
+  if (!task) { showToast("Task not found"); return; }
+  if (completedTasks[taskId]) { showToast("Already completed"); return; }
+  const btn = document.querySelector(`.task-btn[data-task-id="${taskId}"]`);
+  if (!btn) return;
+  if (task.link) { if (tg?.openTelegramLink) tg.openTelegramLink(task.link); else window.open(task.link, "_blank"); }
+  btn.innerHTML = `<span class="spinner-small"></span>`; btn.disabled = true;
+  setTimeout(async () => { await verifyAndReward(taskId, task, btn); }, 3000);
+}
+async function verifyAndReward(taskId, task, btn) {
+  if (!tgUser) { showToast("Only for Telegram users"); resetTaskBtn(btn); return; }
+  const userId = String(tgUser.id);
+  const channel = task.channel || task.link;
+  try {
+    const url = `${CHECK_API}?user_id=${userId}&channel=${encodeURIComponent(channel)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Check failed");
+    if (!data.joined) { showToast("❌ Please join the channel first!"); resetTaskBtn(btn); return; }
+    const userRef = ref(db, "users/" + userId);
+    const reward = Number(task.reward) || 0;
+    const newBalances = { ...currentBalances };
+    newBalances.usdt = (Number(currentBalances.usdt) || 0) + reward;
+    await set(ref(db, `users/${userId}/completed_tasks/${taskId}`), Date.now());
+    await update(userRef, { balance: newBalances });
+    const historyRef = ref(db, `users/${userId}/history`);
+    await push(historyRef, { type: "adtask", coin: "usdt", coin_name: task.name || "Task Reward", logo: task.logo || COIN_LOGOS.usdt, amount: reward, task_id: taskId, status: "completed", timestamp: Date.now() });
+    btn.classList.add("done"); btn.innerHTML = "✓ Done";
+    showToast(`+$${reward.toFixed(2)} Reward!`);
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+  } catch (err) { console.error(err); showToast("Check failed, try again"); resetTaskBtn(btn); }
+}
+function resetTaskBtn(btn) { if (btn) { btn.disabled = false; btn.textContent = "Start"; } }
+
+/* WITHDRAW */
+const withdrawModal = document.getElementById("withdrawModal");
+const currencySelector = document.getElementById("currencySelector");
+const amountInput = document.getElementById("withdrawAmount");
+const addressInput = document.getElementById("withdrawAddress");
+const amountSuffix = document.getElementById("amountSuffix");
+const minHint = document.getElementById("minHint");
+const balHint = document.getElementById("balHint");
+const submitBtn = document.getElementById("submitWithdraw");
+
+function openWithdrawModal() {
+  withdrawModal.classList.add("show");
+  selectedCoin = "usdt";
+  updateCoinSelection();
+  amountInput.value = ""; addressInput.value = "";
+  validateForm();
+}
+currencySelector.querySelectorAll(".currency-option").forEach(opt => {
+  opt.addEventListener("click", () => {
+    selectedCoin = opt.dataset.coin;
+    updateCoinSelection(); validateForm();
+    if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  });
+});
+function updateCoinSelection() {
+  currencySelector.querySelectorAll(".currency-option").forEach(o => { o.classList.toggle("selected", o.dataset.coin === selectedCoin); });
+  amountSuffix.textContent = COIN_SHORT[selectedCoin];
+  minHint.textContent = `Minimum: ${MIN_WITHDRAW[selectedCoin]} ${COIN_SHORT[selectedCoin]}`;
+  const bal = currentBalances[selectedCoin] || 0;
+  balHint.textContent = `Available: ${bal.toFixed(2)} ${COIN_SHORT[selectedCoin]}`;
+}
+amountInput.addEventListener("input", validateForm);
+addressInput.addEventListener("input", validateForm);
+function validateForm() {
+  const amt = parseFloat(amountInput.value);
+  const min = MIN_WITHDRAW[selectedCoin];
+  const bal = Number(currentBalances[selectedCoin]) || 0;
+  const addr = addressInput.value.trim();
+  let valid = true;
+  if (amountInput.value && amt < min) { minHint.classList.add("error"); minHint.textContent = `Minimum is ${min} ${COIN_SHORT[selectedCoin]}`; valid = false; }
+  else { minHint.classList.remove("error"); minHint.textContent = `Minimum: ${min} ${COIN_SHORT[selectedCoin]}`; }
+  if (amountInput.value && amt > bal) { balHint.classList.add("error"); balHint.textContent = `Insufficient balance (${bal.toFixed(2)})`; valid = false; }
+  else { balHint.classList.remove("error"); balHint.textContent = `Available: ${bal.toFixed(2)} ${COIN_SHORT[selectedCoin]}`; }
+  if (!addr || addr.length < 20) valid = false;
+  if (!amountInput.value) valid = false;
+  submitBtn.disabled = !valid;
+}
+withdrawModal.addEventListener("click", e => { if (e.target === withdrawModal) withdrawModal.classList.remove("show"); });
+submitBtn.addEventListener("click", async () => {
+  const amt = parseFloat(amountInput.value);
+  const min = MIN_WITHDRAW[selectedCoin];
+  const bal = Number(currentBalances[selectedCoin]) || 0;
+  const addr = addressInput.value.trim();
+  if (isNaN(amt) || amt < min) { showToast(`Minimum ${min} ${COIN_SHORT[selectedCoin]}`); return; }
+  if (amt > bal) { showToast("Insufficient balance"); return; }
+  if (!addr || addr.length < 20) { showToast("Invalid BEP20 address"); return; }
+  if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("medium");
+  withdrawModal.classList.remove("show");
+  showProcessing("Processing...", "Please wait");
+  try {
+    const usdValue = amt * PRICES[selectedCoin];
+    const userId = String(tgUser?.id || "demo");
+    const userRef = ref(db, "users/" + userId);
+    const newBalances = { ...currentBalances };
+    newBalances[selectedCoin] = bal - amt;
+    const prevWithdrawn = Number(currentUser.total_withdrawn) || 0;
+    await update(userRef, { balance: newBalances, total_withdrawn: prevWithdrawn + usdValue });
+    const historyRef = ref(db, `users/${userId}/history`);
+    await push(historyRef, { type: "withdraw", coin: selectedCoin, coin_name: COIN_NAMES[selectedCoin], logo: COIN_LOGOS[selectedCoin], amount: amt, usd_value: usdValue, address: addr, status: "pending", timestamp: Date.now() });
+    setTimeout(() => {
+      showSuccess("Withdrawal Submitted!", "Pending admin approval");
+      setTimeout(() => { hideProcessing(); showToast("Withdrawal is pending"); if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success"); }, 1400);
+    }, 2000);
+  } catch (err) { console.error(err); hideProcessing(); showToast("Withdrawal failed"); }
+});
+
+/* SWAP */
+const swapModal = document.getElementById("swapModal");
+const fromAmount = document.getElementById("fromAmount");
+const toAmount = document.getElementById("toAmount");
+const swapRate = document.getElementById("swapRate");
+const submitSwap = document.getElementById("submitSwap");
+const fromCoinSelect = document.getElementById("fromCoinSelect");
+const toCoinSelect = document.getElementById("toCoinSelect");
+const fromCoinLogo = document.getElementById("fromCoinLogo");
+const toCoinLogo = document.getElementById("toCoinLogo");
+const fromCoinName = document.getElementById("fromCoinName");
+const toCoinName = document.getElementById("toCoinName");
+const fromBalanceEl = document.getElementById("fromBalance");
+const toBalanceEl = document.getElementById("toBalance");
+
+function openSwapModal() { swapFrom = "usdt"; swapTo = "azad"; fromAmount.value = ""; updateSwapUI(); swapModal.classList.add("show"); }
+swapModal.addEventListener("click", e => { if (e.target === swapModal) swapModal.classList.remove("show"); });
+fromCoinSelect.addEventListener("click", () => openCoinPicker("from"));
+toCoinSelect.addEventListener("click", () => openCoinPicker("to"));
+document.getElementById("swapDirectionBtn").addEventListener("click", () => { const tmp = swapFrom; swapFrom = swapTo; swapTo = tmp; if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("light"); updateSwapUI(); });
+fromAmount.addEventListener("input", updateSwapUI);
+function updateSwapUI() {
+  fromCoinLogo.src = COIN_LOGOS[swapFrom]; fromCoinName.textContent = COIN_SHORT[swapFrom];
+  toCoinLogo.src = COIN_LOGOS[swapTo]; toCoinName.textContent = COIN_SHORT[swapTo];
+  const fromBal = Number(currentBalances[swapFrom]) || 0;
+  const toBal = Number(currentBalances[swapTo]) || 0;
+  fromBalanceEl.textContent = fromBal.toFixed(2) + " " + COIN_SHORT[swapFrom];
+  toBalanceEl.textContent = toBal.toFixed(2) + " " + COIN_SHORT[swapTo];
+  const rate = PRICES[swapFrom] / PRICES[swapTo];
+  swapRate.textContent = `1 ${COIN_SHORT[swapFrom]} = ${rate.toFixed(6)} ${COIN_SHORT[swapTo]}`;
+  const amt = parseFloat(fromAmount.value) || 0;
+  toAmount.value = amt * rate > 0 ? (amt * rate).toFixed(6) : "";
+  submitSwap.disabled = !(amt > 0 && amt <= fromBal);
+}
+function updateSwapBalances() { if (swapModal.classList.contains("show")) updateSwapUI(); }
+
+/* COIN PICKER */
+const coinPickerModal = document.getElementById("coinPickerModal");
+const coinPickerList = document.getElementById("coinPickerList");
+const coinPickerTitle = document.getElementById("coinPickerTitle");
+
+function openCoinPicker(target) {
+  pickerTarget = target;
+  coinPickerTitle.textContent = target === "from" ? "Select From Coin" : "Select To Coin";
+  const currentSelected = target === "from" ? swapFrom : swapTo;
+  const otherCoin = target === "from" ? swapTo : swapFrom;
+  const coins = ["usdt", "azad", "afg"];
+  coinPickerList.innerHTML = coins.map(c => {
+    const disabled = c === otherCoin;
+    const bal = Number(currentBalances[c]) || 0;
+    const selected = c === currentSelected;
+    return `<div class="coin-picker-item ${selected ? 'selected' : ''}" data-coin="${c}" style="${disabled ? 'opacity:.4; pointer-events:none;' : ''}"><img src="${COIN_LOGOS[c]}" alt="${c}" /><div style="flex:1;"><div class="coin-picker-name">${COIN_NAMES[c]}</div><div class="coin-picker-bal">Balance: ${bal.toFixed(2)} ${COIN_SHORT[c]}</div></div></div>`;
+  }).join("");
+  coinPickerList.querySelectorAll(".coin-picker-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const coin = item.dataset.coin;
+      if (pickerTarget === "from") swapFrom = coin; else swapTo = coin;
+      coinPickerModal.classList.remove("show");
+      updateSwapUI();
+      if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    });
+  });
+  coinPickerModal.classList.add("show");
+}
+coinPickerModal.addEventListener("click", e => { if (e.target === coinPickerModal) coinPickerModal.classList.remove("show"); });
+submitSwap.addEventListener("click", async () => {
+  const amt = parseFloat(fromAmount.value);
+  const fromBal = Number(currentBalances[swapFrom]) || 0;
+  if (isNaN(amt) || amt <= 0) { showToast("Enter a valid amount"); return; }
+  if (amt > fromBal) { showToast("Insufficient balance"); return; }
+  if (swapFrom === swapTo) { showToast("Select different coins"); return; }
+  if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("medium");
+  const rate = PRICES[swapFrom] / PRICES[swapTo];
+  const toAmt = amt * rate;
+  swapModal.classList.remove("show");
+  showProcessing("Swapping...", "Please wait");
+  try {
+    const userId = String(tgUser?.id || "demo");
+    const userRef = ref(db, "users/" + userId);
+    const newBalances = { ...currentBalances };
+    newBalances[swapFrom] = fromBal - amt;
+    newBalances[swapTo] = (Number(currentBalances[swapTo]) || 0) + toAmt;
+    await update(userRef, { balance: newBalances });
+    const historyRef = ref(db, `users/${userId}/history`);
+    await push(historyRef, { type: "swap", from_coin: swapFrom, from_name: COIN_SHORT[swapFrom], from_logo: COIN_LOGOS[swapFrom], from_amount: amt, to_coin: swapTo, to_name: COIN_SHORT[swapTo], to_logo: COIN_LOGOS[swapTo], to_amount: toAmt, rate, status: "completed", timestamp: Date.now() });
+    setTimeout(() => { showSuccess("Swap Successful!", `${amt.toFixed(2)} ${COIN_SHORT[swapFrom]} → ${toAmt.toFixed(2)} ${COIN_SHORT[swapTo]}`); setTimeout(() => { hideProcessing(); showToast("Swap completed!"); if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success"); }, 1400); }, 3000);
+  } catch (err) { console.error(err); hideProcessing(); showToast("Swap failed"); }
+});
+
+/* PROCESSING */
+const processingEl = document.getElementById("withdrawProcessing");
+function showProcessing(text = "Processing...", sub = "Please wait") { processingEl.innerHTML = `<div class="process-ring"></div><div class="process-text">${text}</div><div class="process-sub">${sub}</div>`; processingEl.classList.add("show"); }
+function showSuccess(title = "Success!", sub = "Completed") { processingEl.innerHTML = `<div class="success-tick"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></div><div class="process-text">${title}</div><div class="process-sub">${sub}</div>`; }
+function hideProcessing() { processingEl.classList.remove("show"); }
+
+/* HISTORY */
+const historyModal = document.getElementById("historyModal");
+const historyList = document.getElementById("historyList");
+async function openHistoryModal() { historyModal.classList.add("show"); renderHistory(); }
+historyModal.addEventListener("click", e => { if (e.target === historyModal) historyModal.classList.remove("show"); });
+function loadHistory() {
+  const userId = String(tgUser?.id || "demo");
+  const historyRef = ref(db, `users/${userId}/history`);
+  onValue(historyRef, (snap) => { historyCache = snap.exists() ? snap.val() : {}; if (historyModal.classList.contains("show")) renderHistory(); });
+}
+function renderHistory() {
+  const entries = Object.values(historyCache || {}).sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+  if (!entries.length) { historyList.innerHTML = `<div class="empty-history"><div class="empty-history-icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div class="empty-history-text">No transactions yet</div></div>`; return; }
+  historyList.innerHTML = entries.map(e => {
+    if (e.type === "swap") return `<div class="history-item"><div class="history-main"><div class="swap-visual"><div style="display:flex; align-items:center; gap:6px;"><img src="${e.from_logo}" style="width:26px; height:26px; border-radius:50%; object-fit:cover;" /><span style="font-weight:800; font-size:13px; color:#1a1a2e;">${Number(e.from_amount).toFixed(2)} ${e.from_name}</span></div><span style="font-size:14px; color:#667eea; margin-left:2px;">↓</span><div style="display:flex; align-items:center; gap:6px;"><img src="${e.to_logo}" style="width:26px; height:26px; border-radius:50%; object-fit:cover;" /><span style="font-weight:800; font-size:13px; color:#1a1a2e;">${Number(e.to_amount).toFixed(2)} ${e.to_name}</span></div></div><div class="history-info" style="margin-left:8px;"><div class="history-coin">Swap</div><div class="history-date">${formatDate(e.timestamp)}</div></div><div class="history-right"><div class="history-amount swap-amount">⇅</div><div class="history-status status-${e.status || 'completed'}">${e.status || 'completed'}</div></div></div></div>`;
+    if (e.type === "topup") return `<div class="history-item"><div class="history-main"><img class="history-logo" src="${e.logo}" alt="topup" /><div class="history-info"><div class="history-coin">📱 ${e.provider} Top Up</div><div class="history-date">${e.phone} · ${formatDate(e.timestamp)}</div></div><div class="history-right"><div class="history-amount negative">-${Number(e.amount).toFixed(2)}</div><div class="history-status status-${e.status || 'completed'}">${e.status || 'completed'}</div></div></div></div>`;
+    if (e.type === "promo") return `<div class="history-item"><div class="history-main"><img class="history-logo" src="${e.logo}" alt="promo" /><div class="history-info"><div class="history-coin">🎟️ Promo: ${e.code}</div><div class="history-date">${formatDate(e.timestamp)}</div></div><div class="history-right"><div class="history-amount positive">+${Number(e.amount).toFixed(2)}</div><div class="history-status status-${e.status || 'completed'}">${e.status || 'completed'}</div></div></div></div>`;
+    if (e.type === "referral") return `<div class="history-item"><div class="history-main"><img class="history-logo" src="${e.logo}" alt="AZAD" /><div class="history-info"><div class="history-coin">🤝 ${e.coin_name || "Referral Bonus"}</div><div class="history-date">${formatDate(e.timestamp)}</div></div><div class="history-right"><div class="history-amount positive">+${Number(e.amount).toFixed(2)} AZAD</div><div class="history-status status-${e.status || 'completed'}">${e.status || 'completed'}</div></div></div></div>`;
+    if (e.type === "daily") return `<div class="history-item"><div class="history-main"><img class="history-logo" src="${e.logo}" alt="Daily" /><div class="history-info"><div class="history-coin">Daily Bonus</div><div class="history-date">${formatDate(e.timestamp)}</div></div><div class="history-right"><div class="history-amount positive">+$${Number(e.amount).toFixed(2)}</div><div class="history-status status-${e.status || 'completed'}">${e.status || 'completed'}</div></div></div></div>`;
+    if (e.type === "adtask") return `<div class="history-item"><div class="history-main"><img class="history-logo" src="${e.logo}" alt="Task" /><div class="history-info"><div class="history-coin">${e.coin_name || "Task Reward"}</div><div class="history-date">${formatDate(e.timestamp)}</div></div><div class="history-right"><div class="history-amount positive">+$${Number(e.amount).toFixed(2)}</div><div class="history-status status-${e.status || 'completed'}">${e.status || 'completed'}</div></div></div></div>`;
+    return `<div class="history-item"><div class="history-main"><img class="history-logo" src="${e.logo}" alt="${e.coin}" /><div class="history-info"><div class="history-coin">${e.coin_name || e.coin?.toUpperCase()}</div><div class="history-date">${formatDate(e.timestamp)}</div></div><div class="history-right"><div class="history-amount negative">-${Number(e.amount).toFixed(2)}</div><div class="history-status status-${e.status || 'completed'}">${e.status || 'completed'}</div></div></div></div>`;
+  }).join("");
+}
+
+/* TOPUP VALIDATION */
+const phoneNumberInput = document.getElementById("phoneNumber");
+const topupAmount = document.getElementById("topupAmount");
+const topupSuffix = document.getElementById("topupSuffix");
+const topupMinHint = document.getElementById("topupMinHint");
+const topupBalHint = document.getElementById("topupBalHint");
+const conversionBox = document.getElementById("conversionBox");
+const afnAmount = document.getElementById("afnAmount");
+const submitTopup = document.getElementById("submitTopup");
+const providerGrid = document.getElementById("providerGrid");
+const paymentSelector = document.getElementById("paymentSelector");
+
+providerGrid.querySelectorAll(".provider-option").forEach(opt => {
+  opt.addEventListener("click", () => {
+    providerGrid.querySelectorAll(".provider-option").forEach(o => o.classList.remove("selected"));
+    opt.classList.add("selected");
+    topupProvider = opt.dataset.provider;
+    if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    updateTopupValidation();
+  });
+});
+phoneNumberInput.addEventListener("input", () => {
+  phoneNumberInput.value = phoneNumberInput.value.replace(/\D/g, "").slice(0, 10);
+  updateTopupValidation();
+});
+paymentSelector.querySelectorAll(".payment-option").forEach(opt => {
+  opt.addEventListener("click", () => {
+    paymentSelector.querySelectorAll(".payment-option").forEach(o => o.classList.remove("selected"));
+    opt.classList.add("selected");
+    topupCoin = opt.dataset.coin;
+    topupSuffix.textContent = COIN_SHORT[topupCoin];
+    if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    updateTopupValidation();
+  });
+});
+topupAmount.addEventListener("input", updateTopupValidation);
+function updateTopupConversion() {
+  const amt = parseFloat(topupAmount.value) || 0;
+  if (amt > 0) {
+    const afn = amt * PRICES[topupCoin] * USD_TO_AFN;
+    afnAmount.textContent = afn.toFixed(0);
+    conversionBox.style.display = "flex";
+  } else conversionBox.style.display = "none";
+}
+function updateTopupValidation() {
+  const amt = parseFloat(topupAmount.value);
+  const min = MIN_TOPUP[topupCoin];
+  const bal = Number(currentBalances[topupCoin]) || 0;
+  const phone = phoneNumberInput.value.trim();
+  topupMinHint.textContent = `Minimum: ${min} ${COIN_SHORT[topupCoin]}`;
+  topupBalHint.textContent = `Available: ${bal.toFixed(2)} ${COIN_SHORT[topupCoin]}`;
+  topupMinHint.classList.remove("error"); topupBalHint.classList.remove("error");
+  let valid = true;
+  if (!topupProvider) valid = false;
+  if (!phone || phone.length < 9) valid = false;
+  if (!topupAmount.value) valid = false;
+  if (topupAmount.value && amt < min) { topupMinHint.classList.add("error"); topupMinHint.textContent = `Minimum is ${min} ${COIN_SHORT[topupCoin]}`; valid = false; }
+  if (topupAmount.value && amt > bal) { topupBalHint.classList.add("error"); topupBalHint.textContent = `Insufficient balance (${bal.toFixed(2)})`; valid = false; }
+  submitTopup.disabled = !valid;
+  updateTopupConversion();
+}
+submitTopup.addEventListener("click", async () => {
+  const amt = parseFloat(topupAmount.value);
+  const min = MIN_TOPUP[topupCoin];
+  const bal = Number(currentBalances[topupCoin]) || 0;
+  const phone = phoneNumberInput.value.trim();
+  if (!topupProvider) { showToast("Select provider"); return; }
+  if (!phone || phone.length < 9) { showToast("Enter a valid phone number"); return; }
+  if (isNaN(amt) || amt < min) { showToast(`Minimum ${min} ${COIN_SHORT[topupCoin]}`); return; }
+  if (amt > bal) { showToast("Insufficient balance"); return; }
+  if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("medium");
+  const usdValue = amt * PRICES[topupCoin];
+  const afnValue = usdValue * USD_TO_AFN;
+  const fullPhone = "+93" + phone;
+  showProcessing("Processing Top Up...", "Please wait");
+  try {
+    const userId = String(tgUser?.id || "demo");
+    const userRef = ref(db, "users/" + userId);
+    const newBalances = { ...currentBalances };
+    newBalances[topupCoin] = bal - amt;
+    await update(userRef, { balance: newBalances });
+    const historyRef = ref(db, `users/${userId}/history`);
+    await push(historyRef, { type: "topup", provider: topupProvider, phone: fullPhone, coin: topupCoin, coin_name: COIN_NAMES[topupCoin], logo: COIN_LOGOS[topupCoin], amount: amt, usd_value: usdValue, afn_value: afnValue, status: "pending", timestamp: Date.now() });
+    setTimeout(() => {
+      showSuccess("Top Up Successful!", `${fullPhone} • ${afnValue.toFixed(0)} AFN`);
+      setTimeout(() => {
+        hideProcessing();
+        showToast(`✅ ${afnValue.toFixed(0)} AFN sent to ${phone}`);
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+        phoneNumberInput.value = ""; topupAmount.value = ""; topupProvider = null;
+        providerGrid.querySelectorAll(".provider-option").forEach(o => o.classList.remove("selected"));
+        updateTopupValidation();
+      }, 1400);
+    }, 2500);
+  } catch (err) { console.error(err); hideProcessing(); showToast("Top up failed"); }
+});
+
+/* COPY + SHARE */
+document.getElementById("copyRefBtn").addEventListener("click", async () => {
+  const link = document.getElementById("referralLink").textContent;
+  try { await navigator.clipboard.writeText(link); showToast("Link copied!"); if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success"); }
+  catch { showToast("Copy failed"); }
+});
+document.getElementById("shareRefBtn").addEventListener("click", () => {
+  const link = document.getElementById("referralLink").textContent;
+  const shareText = `Join AZAD Wallet! Earn 30/15/5 AZAD from 3-level referrals 🎁`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`;
+  if (tg?.openTelegramLink) tg.openTelegramLink(shareUrl); else window.open(shareUrl, "_blank");
+});
+
+/* TOAST */
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* START */
+initUserUI();
+let started = false;
+function startApp() {
+  if (started) return;
+  started = true;
+  document.getElementById("loadingScreen").classList.add("hidden");
+  setTimeout(() => { document.getElementById("app").classList.add("visible"); loadUserBalances(); }, 300);
+}
+window.addEventListener("load", () => setTimeout(startApp, 3000));
+if (document.readyState === "complete") setTimeout(startApp, 3000);
+
+document.addEventListener("gesturestart", e => e.preventDefault());
+document.addEventListener("dblclick", e => e.preventDefault(), { passive: false });
+</script>
+</body>
+</html>
